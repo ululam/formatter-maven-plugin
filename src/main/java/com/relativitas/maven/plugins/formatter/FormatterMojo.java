@@ -25,13 +25,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.io.UnsupportedEncodingException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -40,17 +43,9 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.logging.Log;
-import org.codehaus.plexus.components.io.fileselectors.FileSelector;
-import org.codehaus.plexus.components.io.fileselectors.IncludeExcludeFileSelector;
-import org.codehaus.plexus.components.io.resources.PlexusIoFileResource;
-import org.codehaus.plexus.components.io.resources.PlexusIoFileResourceCollection;
 import org.codehaus.plexus.resource.ResourceManager;
 import org.codehaus.plexus.resource.loader.FileResourceLoader;
 import org.codehaus.plexus.resource.loader.ResourceNotFoundException;
-import org.codehaus.plexus.util.IOUtil;
-import org.codehaus.plexus.util.ReaderFactory;
-import org.codehaus.plexus.util.StringUtils;
-import org.codehaus.plexus.util.WriterFactory;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.formatter.CodeFormatter;
@@ -78,7 +73,6 @@ import org.xml.sax.SAXException;
  */
 public class FormatterMojo extends AbstractMojo {
 	private static final String CACHE_PROPERTIES_FILENAME = "maven-java-formatter-cache.properties";
-	private static final String[] DEFAULT_INCLUDES = new String[] { "**/*.java" };
 
 	static final String LINE_ENDING_AUTO = "AUTO";
 	static final String LINE_ENDING_KEEP = "KEEP";
@@ -139,30 +133,9 @@ public class FormatterMojo extends AbstractMojo {
 	 * Location of the Java source files to format.
 	 * 
 	 * @parameter
-	 * @deprecated Use includes/excludes instead
 	 */
 	private File[] directories;
 
-	/**
-	 * List of fileset patterns for Java source locations to include in formatting.
-	 * Patterns are relative to the project source and test source directories.
-	 * When not specified, the default include is <code>**&#47;*.java</code>
-	 * 
-	 * @parameter
-	 * @since 0.3.0
-	 */
-	private String[] includes;
-	
-	/**
-	 * List of fileset patterns for Java source locations to exclude from formatting.
-	 * Patterns are relative to the project source and test source directories.
-	 * When not specified, there is no default exclude.
-	 * 
-	 * @parameter
-	 * @since 0.3.0
-	 */
-	private String[] excludes;
-	
 	/**
 	 * Java compiler source version.
 	 * 
@@ -185,14 +158,6 @@ public class FormatterMojo extends AbstractMojo {
 	private String compilerTargetPlatform;
 
 	/**
-	 * The file encoding of the source files.
-	 * 
-	 * @parameter default-value="${project.build.sourceEncoding}"
-	 * @since 0.3.0
-	 */
-	 private String encoding;
-	
-	/**
 	 * Sets the line-ending of files after formatting. Valid values are:
 	 * <ul>
 	 * <li><b>"AUTO"</b> - Use line endings of current system</li>
@@ -204,7 +169,6 @@ public class FormatterMojo extends AbstractMojo {
 	 * </ul>
 	 * 
 	 * @parameter default-value="AUTO"
-	 * @since 0.2.0
 	 */
 	private String lineEnding;
 
@@ -222,36 +186,18 @@ public class FormatterMojo extends AbstractMojo {
 	 * configFile.
 	 * 
 	 * @parameter default-value="false"
-	 * @since 0.2.0
 	 */
 	private Boolean overrideConfigCompilerVersion;
 
 	private CodeFormatter formatter;
 
-	private PlexusIoFileResourceCollection collection;
-	
 	/**
 	 * @see org.apache.maven.plugin.AbstractMojo#execute()
 	 */
 	public void execute() throws MojoExecutionException {
 		long startClock = System.currentTimeMillis();
 
-		if (StringUtils.isEmpty(encoding)) {
-			encoding = ReaderFactory.FILE_ENCODING;
-			getLog().warn(
-				"File encoding has not been set, using platform encoding (" + encoding
-						+ ") to format source files, i.e. build is platform dependent!");
-		} else {
-			try {
-				"Test Encoding".getBytes(encoding);
-			}
-			catch (UnsupportedEncodingException e) {
-				throw new MojoExecutionException("Encoding '" + encoding + "' is not supported");
-			}
-			getLog().info("Using '" + encoding + "' encoding to format source files.");
-		}
-		
-		if (!LINE_ENDING_AUTO.equals(lineEnding) 
+		if (!LINE_ENDING_AUTO.equals(lineEnding)
 				&& !LINE_ENDING_KEEP.equals(lineEnding)
 				&& !LINE_ENDING_LF.equals(lineEnding)
 				&& !LINE_ENDING_CRLF.equals(lineEnding)
@@ -260,19 +206,12 @@ public class FormatterMojo extends AbstractMojo {
 					"Unknown value for lineEnding parameter");
 		}
 
-		createResourceCollection();
-		
-		List files = new ArrayList();
-		try {
-			collection.setBaseDir(sourceDirectory);
-			addCollectionFiles(files);
-			collection.setBaseDir(testSourceDirectory);
-			addCollectionFiles(files);
-		}
-		catch (IOException e) {
-			throw new MojoExecutionException("Unable to find files using includes/excludes", e);
+		if (directories == null) {
+			directories = new File[] { sourceDirectory, testSourceDirectory };
 		}
 
+		List files = new ArrayList();
+		probeFiles(directories, files);
 		int numberOfFiles = files.size();
 		Log log = getLog();
 		log.info("Number of files to be formatted: " + numberOfFiles);
@@ -298,39 +237,6 @@ public class FormatterMojo extends AbstractMojo {
 				+ "s");
 	}
 
-	/**
-	 * Create a {@link PlexusIoFileResourceCollection} instance to be used by this mojo.
-	 * This collection uses the includes and excludes to find the source files.
-	 */
-	void createResourceCollection() {
-		collection = new PlexusIoFileResourceCollection();
-		if ( includes != null && includes.length > 0 ) {
-			collection.setIncludes(includes);
-		} else {
-			collection.setIncludes(DEFAULT_INCLUDES);
-		}
-		collection.setExcludes(excludes);
-		collection.setIncludingEmptyDirectories(false);
-
-		IncludeExcludeFileSelector fileSelector = new IncludeExcludeFileSelector();
-		fileSelector.setIncludes(DEFAULT_INCLUDES);
-		collection.setFileSelectors(new FileSelector[]{fileSelector});
-	}
-	
-	/**
-	 * Add source files from the {@link PlexusIoFileResourceCollection} to the files list.
-	 * 
-	 * @param files
-	 * @throws IOException
-	 */
-	void addCollectionFiles(List files) throws IOException {
-		Iterator resources = collection.getResources();
-		while(resources.hasNext()) {
-			  PlexusIoFileResource resource = (PlexusIoFileResource)resources.next();
-			  files.add(resource.getFile());
-		}
-	}
-	
 	private String getBasedirPath() {
 		try {
 			return basedir.getCanonicalPath();
@@ -460,7 +366,7 @@ public class FormatterMojo extends AbstractMojo {
 	 * @throws UnsupportedEncodingException
 	 */
 	private String md5hash(String str) throws UnsupportedEncodingException {
-		return DigestUtils.md5Hex(str.getBytes(encoding));
+		return DigestUtils.md5Hex(str.getBytes("ISO8859_1"));
 	}
 
 	/**
@@ -474,7 +380,7 @@ public class FormatterMojo extends AbstractMojo {
 		StringBuilder fileData = new StringBuilder(1000);
 		BufferedReader reader = null;
 		try {
-			reader = new BufferedReader(ReaderFactory.newReader(file, encoding));
+			reader = new BufferedReader(new FileReader(file));
 			char[] buf = new char[1024];
 			int numRead = 0;
 			while ((numRead = reader.read(buf)) != -1) {
@@ -483,7 +389,7 @@ public class FormatterMojo extends AbstractMojo {
 				buf = new char[1024];
 			}
 		} finally {
-			IOUtil.close(reader);
+			closeReader(reader);
 		}
 		return fileData.toString();
 	}
@@ -502,10 +408,66 @@ public class FormatterMojo extends AbstractMojo {
 
 		BufferedWriter bw = null;
 		try {
-			bw = new BufferedWriter(WriterFactory.newWriter(file, encoding));
+			bw = new BufferedWriter(new FileWriter(file));
 			bw.write(str);
 		} finally {
-			IOUtil.close(bw);
+			closeWriter(bw);
+		}
+	}
+
+	/**
+	 * Quietly close a reader.
+	 * 
+	 * @param reader
+	 */
+	private void closeReader(Reader reader) {
+		if (reader == null) {
+			return;
+		}
+
+		try {
+			reader.close();
+		} catch (IOException e) {
+		}
+	}
+
+	/**
+	 * Quietly close a writer.
+	 * 
+	 * @param writer
+	 */
+	private void closeWriter(Writer writer) {
+		if (writer == null) {
+			return;
+		}
+
+		try {
+			writer.close();
+		} catch (IOException e) {
+		}
+	}
+
+	/**
+	 * Recursively probe for all files to be processed.
+	 * 
+	 * @param files
+	 * @param result
+	 */
+	private void probeFiles(File[] files, List result) {
+		for (int i = 0, n = files.length; i < n; i++) {
+			File file = files[i];
+			if (!file.exists()) {
+				continue;
+			}
+
+			if (file.isDirectory()) {
+				probeFiles(file.listFiles(), result);
+			}
+			if (file.isFile()) {
+				if (file.getName().endsWith(".java")) {
+					result.add(file);
+				}
+			}
 		}
 	}
 

@@ -4,7 +4,7 @@
 	<groupId>com.googlecode.maven-java-formatter-plugin</groupId>
 	<artifactId>maven-java-formatter-plugin</artifactId>
 	<packaging>maven-plugin</packaging>
-	<version>0.3.0-SNAPSHOT</version>
+	<version>0.2.1-SNAPSHOT</version>
 	<name>Maven2 Java Formatter Plugin</name>
 	
 	<description>Plugin for formatting Java source code</description>
@@ -24,9 +24,9 @@
 	</issueManagement>
 	
 	<scm>
-		<connection>scm:svn:http://maven-java-formatter-plugin.googlecode.com/svn/trunk/</connection>
-		<developerConnection>scm:svn:https://maven-java-formatter-plugin.googlecode.com/svn/trunk/</developerConnection>
-		<url>http://maven-java-formatter-plugin.googlecode.com/svn/trunk/</url>
+		<connection>scm:svn:http://maven-java-formatter-plugin.googlecode.com/svn/branches/0.2.x</connection>
+		<developerConnection>scm:svn:https://maven-java-formatter-plugin.googlecode.com/svn/branches/0.2.x</developerConnection>
+		<url>http://maven-java-formatter-plugin.googlecode.com/svn/branches/0.2.x</url>
 	</scm>
 	
 	<developers>
@@ -42,45 +42,6 @@
 		</developer>
 	</developers>
 	
-	<dependencyManagement>
-		<dependencies>
-			<dependency>
-				<groupId>org.eclipse.core</groupId>
-				<artifactId>commands</artifactId>
-				<version>3.3.0-I20070605-0010</version>
-			</dependency>
-			<dependency>
-				<groupId>org.eclipse</groupId>
-				<artifactId>osgi</artifactId>
-				<version>3.3.0-v20070530</version>
-			</dependency>
-			<dependency>
-				<groupId>org.eclipse.equinox</groupId>
-				<artifactId>common</artifactId>
-				<version>3.3.0-v20070426</version>
-			</dependency>
-			<dependency>
-				<groupId>org.eclipse.core</groupId>
-				<artifactId>jobs</artifactId>
-				<version>3.3.0-v20070423</version>
-			</dependency>
-			<dependency>
-				<groupId>org.eclipse.equinox</groupId>
-				<artifactId>registry</artifactId>
-				<version>3.3.0-v20070522</version>
-			</dependency>
-			<dependency>
-				<groupId>org.eclipse.equinox</groupId>
-				<artifactId>preferences</artifactId>
-				<version>3.2.100-v20070522</version>
-			</dependency>
-			<dependency>
-				<groupId>org.eclipse.core</groupId>
-				<artifactId>contenttype</artifactId>
-				<version>3.2.100-v20070319</version>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.maven</groupId>
@@ -135,18 +96,8 @@
 		</dependency>
 		<dependency>
 			<groupId>org.codehaus.plexus</groupId>
-			<artifactId>plexus-io</artifactId>
-			<version>1.0.1</version>
-		</dependency>
-		<dependency>
-			<groupId>org.codehaus.plexus</groupId>
 			<artifactId>plexus-resources</artifactId>
 			<version>1.0-alpha-7</version>
-		</dependency>
-		<dependency>
-			<groupId>org.codehaus.plexus</groupId>
-			<artifactId>plexus-utils</artifactId>
-			<version>2.0.5</version>
 		</dependency>
 	</dependencies>
 	
